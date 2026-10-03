@@ -1,4 +1,7 @@
-import { clearSession } from '@/lib/auth'
+import { clearAuthCookie } from '@/lib/auth'
 import { ok } from '@/lib/api-response'
 
-export async function POST() { await clearSession(); return ok({ message: 'Logged out successfully' }) }
+export async function POST() {
+  await clearAuthCookie()
+  return ok({}, 'Logged out successfully')
+}

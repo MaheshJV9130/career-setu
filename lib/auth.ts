@@ -1,34 +1,74 @@
 import { cookies } from 'next/headers'
-import { SignJWT, jwtVerify } from 'jose'
 import { connectDB } from './db'
-import { User } from '@/models/User'
+import { User, IUser } from '@/models/User'
+import { verifyToken, JWTPayload } from './jwt'
+import { fail } from './api-response'
 
-const COOKIE_NAME = 'careerset_session'
-const secret = new TextEncoder().encode(process.env.AUTH_SECRET || process.env.BETTER_AUTH_SECRET || 'development-only-change-me')
+export const AUTH_COOKIE_NAME = 'careersetu_token'
 
-type SessionPayload = { userId: string; role: string }
-
-export async function createSession(userId: string, role: string) {
-  const token = await new SignJWT({ userId, role } satisfies SessionPayload)
-    .setProtectedHeader({ alg: 'HS256' }).setIssuedAt().setExpirationTime('7d').sign(secret)
-  const jar = await cookies()
-  jar.set(COOKIE_NAME, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 7 })
+export async function setAuthCookie(token: string) {
+  const cookieStore = await cookies()
+  cookieStore.set(AUTH_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+  })
 }
 
-export async function getSession() {
-  const token = (await cookies()).get(COOKIE_NAME)?.value
+export async function clearAuthCookie() {
+  const cookieStore = await cookies()
+  cookieStore.delete(AUTH_COOKIE_NAME)
+  // Also delete old cookie name if present
+  cookieStore.delete('careerset_session')
+}
+
+export async function getAuthToken(): Promise<string | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(AUTH_COOKIE_NAME)?.value || cookieStore.get('careerset_session')?.value
+  return token || null
+}
+
+export async function getSession(): Promise<JWTPayload | null> {
+  const token = await getAuthToken()
   if (!token) return null
-  try {
-    const { payload } = await jwtVerify(token, secret)
-    return payload as unknown as SessionPayload
-  } catch { return null }
+  return await verifyToken(token)
 }
 
 export async function getCurrentUser() {
   const session = await getSession()
-  if (!session) return null
-  await connectDB()
-  return User.findById(session.userId).select('-password').lean()
+  if (!session?.userId) return null
+
+  try {
+    await connectDB()
+    const user = await User.findById(session.userId).select('-password').lean()
+    if (!user || user.status === 'inactive') return null
+    return {
+      ...user,
+      id: user._id.toString(),
+    }
+  } catch (error) {
+    console.error('[getCurrentUser] Database error:', error)
+    return null
+  }
 }
 
-export async function clearSession() { (await cookies()).delete(COOKIE_NAME) }
+export async function requireAuth() {
+  const user = await getCurrentUser()
+  if (!user) {
+    return { error: fail('Authentication required.', 401), user: null }
+  }
+  return { error: null, user }
+}
+
+export async function requireAdmin() {
+  const user = await getCurrentUser()
+  if (!user) {
+    return { error: fail('Authentication required.', 401), user: null }
+  }
+  if (user.role !== 'admin') {
+    return { error: fail('Admin access required.', 403), user: null }
+  }
+  return { error: null, user }
+}

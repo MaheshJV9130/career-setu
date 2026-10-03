@@ -1,11 +1,8 @@
-import { getCurrentUser } from './auth'
+import { getCurrentUser, requireAdmin as authRequireAdmin } from './auth'
 import { fail } from './api-response'
 
 export async function requireAdmin() {
-  const user = await getCurrentUser()
-  if (!user) return { error: fail('Authentication required.', 401), user: null }
-  if (user.role !== 'admin') return { error: fail('Admin access required.', 403), user: null }
-  return { error: null, user }
+  return await authRequireAdmin()
 }
 
 export async function requireActiveUser() {
