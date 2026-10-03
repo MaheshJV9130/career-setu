@@ -320,19 +320,21 @@ export async function seedDatabase() {
   }
 
   // 4. Seed Admin if credentials provided
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@careersetu.org'
-  const adminPassword = process.env.ADMIN_PASSWORD || 'AdminSecurePassword123!'
-  const existingAdmin = await User.findOne({ email: adminEmail })
-  if (!existingAdmin) {
-    const hashedPassword = await bcrypt.hash(adminPassword, 12)
-    await User.create({
-      name: 'CareerSetu Admin',
-      email: adminEmail,
-      password: hashedPassword,
-      role: 'admin',
-      status: 'active',
-    })
-    console.log('[Seed] Admin user created:', adminEmail)
+  const adminEmail = process.env.ADMIN_EMAIL
+  const adminPassword = process.env.ADMIN_PASSWORD
+  if (adminEmail && adminPassword) {
+    const existingAdmin = await User.findOne({ email: adminEmail })
+    if (!existingAdmin) {
+      const hashedPassword = await bcrypt.hash(adminPassword, 12)
+      await User.create({
+        name: 'CareerSetu Admin',
+        email: adminEmail,
+        password: hashedPassword,
+        role: 'admin',
+        status: 'active',
+      })
+      console.log('[Seed] Admin user created:', adminEmail)
+    }
   }
 
   return {

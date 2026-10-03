@@ -19,7 +19,10 @@ const PROTECTED_STUDENT_PATHS = [
 const PROTECTED_ADMIN_PATHS = ['/admin']
 
 function getJwtSecretKey() {
-  const secret = process.env.JWT_SECRET || 'careersetu_default_secret_jwt_key_at_least_32_characters'
+  const secret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'careersetu_default_secret_jwt_key_at_least_32_characters')
+  if (!secret || secret.length < 32) {
+    throw new Error('JWT_SECRET must be set to at least 32 characters')
+  }
   return new TextEncoder().encode(secret)
 }
 
